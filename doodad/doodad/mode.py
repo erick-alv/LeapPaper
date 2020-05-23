@@ -63,9 +63,42 @@ class Local(LaunchMode):
         commands.extend(cleanup_commands)
 
         # Call everything
-        commands.call_and_wait(verbose=verbose, dry=dry, skip_wait=skip_wait)
+
+        #commands.call_and_wait(verbose=verbose, dry=dry, skip_wait=skip_wait)
+        own_call_and_wait(commands.to_string(), verbose=verbose, dry=dry, skip_wait=skip_wait)
 
 LOCAL = Local()
+
+#from multiprocessing import Process
+import subprocess
+import sys
+def own_call_and_wait(cmd_str, verbose=False, dry=False, skip_wait=False):
+    assert isinstance(cmd_str, str)
+    commands = cmd_str.split(';')
+    for cmd in commands:
+        print(cmd)
+        if dry or verbose:
+            print(cmd)
+        if not dry:
+            if(cmd.startswith('python')):
+                new_command = cmd.replace('python', sys.executable, 1)
+                cm_list = new_command.split()
+                p = subprocess.Popen(cm_list)
+
+            else:
+                p = subprocess.Popen(cmd, shell=True)
+        if skip_wait:
+            return
+        try:
+            p.wait()
+        except KeyboardInterrupt:
+            try:
+                print("terminating")
+                p.terminate()
+            except OSError:
+                print("os error!")
+                pass
+            p.wait()
 
 
 class DockerMode(LaunchMode):

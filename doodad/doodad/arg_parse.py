@@ -22,14 +22,27 @@ def __get_arg_config():
     args = parser.parse_args()
     __ARGS = args
     """
-    args_data = os.environ.get(ARGS_DATA, {})
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--' + USE_CLOUDPICKLE, type=bool, default=False)
+    parser.add_argument('--' + ARGS_DATA, type=str, default='')
+    parser.add_argument('--' + CLOUDPICKLE_VERSION, type=str, default='n/a')
+    args2 = parser.parse_args()
+
+    args = lambda: None  # hack - use function as namespace
+    args.args_data = args2.DOODAD_ARGS_DATA
+    args.use_cloudpickle = args2.DOODAD_USE_CLOUDPICKLE
+    args.cloudpickle_version = args2.DOODAD_CLOUDPICKLE_VERSION
+    '''args_data = os.environ.get(ARGS_DATA, {})
     cloudpickle_version = os.environ.get(CLOUDPICKLE_VERSION, 'n/a')
     use_cloudpickle = bool(int(os.environ.get(USE_CLOUDPICKLE, '0')))
 
     args = lambda : None # hack - use function as namespace
     args.args_data = args_data
     args.use_cloudpickle = use_cloudpickle
-    args.cloudpickle_version = cloudpickle_version
+    args.cloudpickle_version = cloudpickle_version'''
+
+
+
     return args
 
 

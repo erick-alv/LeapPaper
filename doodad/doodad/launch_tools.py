@@ -93,10 +93,15 @@ def make_python_command(
 
     args_encoded, cp_version = encode_args(args, cloudpickle=use_cloudpickle)
     if args:
-        cmd = '%s=%s %s=%s %s=%s %s' % (ARGS_DATA, args_encoded,
+        '''cmd = '%s=%s %s=%s %s=%s %s' % (ARGS_DATA, args_encoded,
                 USE_CLOUDPICKLE, str(int(use_cloudpickle)),
                 CLOUDPICKLE_VERSION, cp_version,
-                cmd)
+                cmd)'''
+        cmd = '%s --%s %s --%s %s --%s %s' % (cmd, ARGS_DATA, args_encoded,
+                                        USE_CLOUDPICKLE, str(int(use_cloudpickle)),
+                                        CLOUDPICKLE_VERSION, cp_version,
+                                        )
+
 
     if gpu_id is not None:
         cmd = 'CUDA_VISIBLE_DEVICES=%s %s' % (gpu_id, cmd)

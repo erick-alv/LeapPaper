@@ -1,6 +1,7 @@
 from PIL import Image
 import numpy as np
 import argparse
+import os
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -36,13 +37,18 @@ def npy_to_image(npy_path, image_save_path, display=False):
             process_image(npy_as_array[i], name+'_'+str(i)+'.png')
     else:
         process_image(npy_as_array, image_save_path)
+import fnmatch
 
-
-
-
-def generate_images_array(l):
-    return np.random.randint(low=0,high=256, size=(l, l, 3))
-
+def store_image_array_at(single_image_array, path_to_folder, img_name):
+    '''
+    :param dict:
+    :param dict_key: key for the dict, where the images should be
+    :return:
+    '''
+    '''files = [f for f in os.listdir(path_to_folder) if fnmatch.fnmatch(f, '*_id****.png')]
+    print(files)'''
+    image = Image.fromarray(single_image_array, 'RGB')
+    image.save(path_to_folder+img_name+'.png')
 
 
 
@@ -55,6 +61,6 @@ if __name__ == "__main__":
     #np.save('/home/erick/Pictures/testars.npy', arm)
     #image = Image.fromarray(ar, 'RGB')
     #image.show()
-    arm = np.load('/home/erick/RL/LeapPaper/logdata/pnr/05-16-generate-vae-dataset-local/05-16-generate-vae-dataset-local_2020_05_16_15_55_17_id000--s17319/vae_dataset.npy',allow_pickle=True)
+    arm = np.load('/home/erick/log_leap/pnr/05-20-generate-vae-dataset-local/05-20-generate-vae-dataset-local_2020_05_20_22_58_16_id000--s94822/vae_dataset.npy',allow_pickle=True)
     print(arm.shape)
     print(arm.ndim)

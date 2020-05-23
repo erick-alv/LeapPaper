@@ -176,7 +176,8 @@ def train_vae(variant):
                 )
 
     # train vae
-    for epoch in range(variant['num_epochs']):
+    #for epoch in range(variant['num_epochs']):
+    for epoch in range(50):
         save_vis = (epoch % vis_variant['save_period'] == 0 or epoch == variant['num_epochs'] - 1)
         save_vae = (epoch % variant['snapshot_gap'] == 0 or epoch == variant['num_epochs'] - 1)
         
@@ -187,8 +188,8 @@ def train_vae(variant):
             save_interpolation=save_vis,
             save_vae=save_vae,
         )
-
-        visualization_post_processing(save_vis, save_video, epoch)
+        if epoch % 10 == 0 or epoch == variant['num_epochs']-1:
+            visualization_post_processing(save_vis, save_video, epoch)
 
     logger.save_extra_data(m, 'vae.pkl', mode='pickle')
     logger.remove_tabular_output(
@@ -309,6 +310,7 @@ def generate_vae_dataset(variant):
         else:
             dataset['next_obs'][i, :] = obs['state_observation']
         dataset['next_obs_state'][i, :] = obs['state_observation']
+        show = True#todo del own
         if show:
             img = img.reshape(3, imsize, imsize).transpose((1, 2, 0))
             img = img[::, :, ::-1]

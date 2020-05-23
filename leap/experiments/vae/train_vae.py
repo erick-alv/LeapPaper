@@ -67,7 +67,7 @@ env_params = {
 
         'vae_variant.beta': [2.5],
         'vae_variant.generate_vae_dataset_kwargs.dataset_path': [
-            '/home/erick/RL/LeapPaper/logdata/pnr/05-16-generate-vae-dataset-local/05-16-generate-vae-dataset-local_2020_05_16_15_55_17_id000--s17319/vae_dataset.npy',
+            '/home/erick/log_leap/pnr/05-20-generate-vae-dataset-local/05-20-generate-vae-dataset-local_2020_05_20_22_58_16_id000--s94822/vae_dataset.npy',
         ],
         'vae_variant.vae_type': ['VAE2'],
         'vae_variant.vae_kwargs.gaussian_decoder': [True],

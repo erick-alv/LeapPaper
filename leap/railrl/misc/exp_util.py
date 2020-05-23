@@ -49,6 +49,7 @@ def run_experiment(
     num_exps_for_instances = get_num_exps_for_instances(args)
     for num_exps in num_exps_for_instances:
         run_experiment_kwargs = get_instance_kwargs(args, num_exps, variant)
+        run_experiment_kwargs['use_gpu'] = False#todo own
         exp_launcher_function(
             exp_function,
             variant=variant,
