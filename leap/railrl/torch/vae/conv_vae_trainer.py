@@ -230,6 +230,14 @@ class ConvVAETrainer(Serializable):
             x = next_obs.view((batch_size, 1, -1)).repeat(torch.Size([1, k, 1]))
             vae_loss, de, kle = self.compute_vae_loss(x_recon, x, z_mu, z_logvar, z, beta)
             loss = vae_loss
+
+            print("---------------------")
+            print("loss ", loss.data)
+            print("z_mu ", z_mu.data[0][0])
+            print("z_logvar ", z_logvar.data[0][0])
+            print("z ", z.data[0][0])
+            print("---------------------")
+
             if self.use_linear_dynamics:
                 linear_dynamics_loss = self.state_linearity_loss(
                     obs, next_obs, actions

@@ -2,6 +2,7 @@ from PIL import Image
 import numpy as np
 import argparse
 import os
+import fnmatch
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -37,7 +38,7 @@ def npy_to_image(npy_path, image_save_path, display=False):
             process_image(npy_as_array[i], name+'_'+str(i)+'.png')
     else:
         process_image(npy_as_array, image_save_path)
-import fnmatch
+
 
 def store_image_array_at(single_image_array, path_to_folder, img_name):
     '''
@@ -47,8 +48,20 @@ def store_image_array_at(single_image_array, path_to_folder, img_name):
     '''
     '''files = [f for f in os.listdir(path_to_folder) if fnmatch.fnmatch(f, '*_id****.png')]
     print(files)'''
-    image = Image.fromarray(single_image_array, 'RGB')
+    if single_image_array.max() <= 1.0:
+        #assume is normalized in [0,1]
+        single_image_array *= 255.0
+
+    image = Image.fromarray(single_image_array.astype(np.uint8), 'RGB')
     image.save(path_to_folder+img_name+'.png')
+
+def make_random_imarray():
+    return np.array([
+        np.array([
+            np.random.uniform(low=0, high=1, size=3)
+            for _ in range(4)])
+    for _ in range(4)])
+
 
 
 
