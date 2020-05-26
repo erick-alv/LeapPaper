@@ -23,7 +23,7 @@ class ConvVAETrainer(Serializable):
             train_dataset,
             test_dataset,
             model,
-            batch_size=128,
+            batch_size=64,
             beta=0.5,
             beta_schedule=None,
             lr=None,
@@ -231,27 +231,30 @@ class ConvVAETrainer(Serializable):
             vae_loss, de, kle = self.compute_vae_loss(x_recon, x, z_mu, z_logvar, z, beta)
             loss = vae_loss
 
-            print("---------------------")
+            '''print("---------------------")
             print("loss ", loss.data)
             print("z_mu ", z_mu.data[0][0])
             print("z_logvar ", z_logvar.data[0][0])
             print("z ", z.data[0][0])
-            print("---------------------")
+            print("---------------------")'''
 
             if self.use_linear_dynamics:
                 linear_dynamics_loss = self.state_linearity_loss(
                     obs, next_obs, actions
                 )
                 loss += self.linearity_weight * linear_dynamics_loss
-                linear_losses.append(linear_dynamics_loss.data[0])
+                linear_losses.append(float(linear_dynamics_loss.data[0]))
             loss.backward()
 
-            vae_losses.append(vae_loss.data[0])
-            losses.append(loss.data[0])
-            des.append(de.data[0])
-            kles.append(kle.data[0])
-
+            vae_losses.append(float(vae_loss.data[0]))
+            losses.append(float(loss.data[0]))
+            des.append(float(de.data[0]))
+            kles.append(float(kle.data[0]))
             self.optimizer.step()
+            del data, obs, next_obs, actions, x_recon, z_mu, z_logvar, \
+                z, x, vae_loss, de, kle, loss
+
+
 
         logger.record_tabular("train/epoch", epoch)
         logger.record_tabular("train/decoder_loss", np.mean(des))
@@ -276,34 +279,43 @@ class ConvVAETrainer(Serializable):
         for batch_idx in range(10):
             data = self.get_batch(train=False)
             obs = data['obs']
+            obs = obs.detach()
             next_obs = data['next_obs']
+            next_obs = next_obs.detach()
             actions = data['actions']
-            x_recon, z_mu, z_logvar, z = self.model(next_obs, n_imp=25)
+            actions = actions.detach()
+
+            x_recon, z_mu, z_logvar, z = self.model(next_obs,  n_imp=25)
             x_recon = x_recon.detach()
             z_mu = z_mu.detach()
-            z_logvar = z_logvar.detach()
             z = z.detach()
+
             batch_size = x_recon.shape[0]
             k = x_recon.shape[1]
             x = next_obs.view((batch_size, 1, -1)).repeat(torch.Size([1, k, 1]))
+            x = x.detach()
             vae_loss, de, kle = self.compute_vae_loss(x_recon, x, z_mu, z_logvar, z, beta)
+            vae_loss, de, kle = vae_loss.detach(), de.detach(), kle.detach()
             iwae_loss = self.compute_iwae_loss(x_recon, x, z_mu, z_logvar, z, beta)
+            iwae_loss = iwae_loss.detach()
             loss = vae_loss
             if self.use_linear_dynamics:
                 linear_dynamics_loss = self.state_linearity_loss(
                     obs, next_obs, actions
                 )
+                linear_dynamics_loss = linear_dynamics_loss.detach()
                 loss += self.linearity_weight * linear_dynamics_loss
-                linear_losses.append(linear_dynamics_loss.data[0])
+                linear_losses.append(float(linear_dynamics_loss.data[0]))#here too
 
             z_data = ptu.get_numpy(z_mu[:,0].cpu())
             for i in range(len(z_data)):
-                zs.append(z_data[i, :])
-            vae_losses.append(vae_loss.data[0])
-            iwae_losses.append(iwae_loss.data[0])
-            losses.append(loss.data[0])
-            des.append(de.data[0])
-            kles.append(kle.data[0])
+                zs.append(z_data[i, :].copy())
+            vae_losses.append(float(vae_loss.data[0]))
+            iwae_losses.append(float(iwae_loss.data[0]))
+            losses.append(float(loss.data[0]))
+            des.append(float(de.data[0]))
+            kles.append(float(kle.data[0]))
+
 
             if batch_idx == 0 and save_reconstruction:
                 n = min(data['next_obs'].size(0), 16)
@@ -321,6 +333,7 @@ class ConvVAETrainer(Serializable):
                 ])
                 save_dir = osp.join(logger.get_snapshot_dir(), 'r_%d.png' % epoch)
                 save_image(comparison.data.cpu(), save_dir, nrow=n)
+                del comparison
 
             if batch_idx == 0 and save_interpolation:
                 n = min(data['next_obs'].size(0), 10)
@@ -342,14 +355,20 @@ class ConvVAETrainer(Serializable):
 
                 save_dir = osp.join(logger.get_snapshot_dir(), 'i_%d.png' % epoch)
                 save_image(
-                    imgs.data,
+                    imgs.data.cpu(),
                     save_dir,
                     nrow=num_steps,
                 )
+                del imgs
+                del z_interp
+
+            del obs, next_obs, actions, x_recon, z_mu, z_logvar, \
+                z, x, vae_loss, de, kle, loss
 
         zs = np.array(zs)
         self.model.dist_mu = zs.mean(axis=0)
         self.model.dist_std = zs.std(axis=0)
+        del zs
 
         logger.record_tabular("test/decoder_loss", np.mean(des))
         logger.record_tabular("test/KL", np.mean(kles))

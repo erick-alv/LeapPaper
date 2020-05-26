@@ -176,20 +176,28 @@ def train_vae(variant):
                 )
 
     # train vae
-    #for epoch in range(variant['num_epochs']):
-    for epoch in range(50):
+    for epoch in range(variant['num_epochs']):
+    #for epoch in range(2000):
         save_vis = (epoch % vis_variant['save_period'] == 0 or epoch == variant['num_epochs'] - 1)
         save_vae = (epoch % variant['snapshot_gap'] == 0 or epoch == variant['num_epochs'] - 1)
         
         t.train_epoch(epoch)
-        t.test_epoch(
-            epoch,
-            save_reconstruction=save_vis,
-            save_interpolation=save_vis,
-            save_vae=save_vae,
-        )
-        if epoch % 10 == 0 or epoch == variant['num_epochs']-1:
-            visualization_post_processing(save_vis, save_video, epoch)
+        '''if epoch % 500 == 0 or epoch == variant['num_epochs']-1:
+           t.test_epoch(
+                epoch,
+                save_reconstruction=save_vis,
+                save_interpolation=save_vis,
+                save_vae=save_vae,
+            )
+        if epoch % 500 == 0 or epoch == variant['num_epochs']-1:
+            visualization_post_processing(save_video, save_video, epoch)'''
+
+        t.test_epoch(epoch,
+                     save_reconstruction=save_vis,
+                     save_interpolation=save_vis,
+                     save_vae=save_vae,
+                     )
+        visualization_post_processing(save_video, save_video, epoch)
 
     logger.save_extra_data(m, 'vae.pkl', mode='pickle')
     logger.remove_tabular_output(
@@ -200,6 +208,7 @@ def train_vae(variant):
         'progress.csv',
         relative_to_snapshot_dir=True,
     )
+    print("finished --------------------!!!!!!!!!!!!!!!")
 
     return m
 

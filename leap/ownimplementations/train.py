@@ -1,5 +1,5 @@
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 from ownimplementations.convolutional_vae import CVAE
 import time
 from ownimplementations.npy_image_reader import store_image_array_at
@@ -7,16 +7,14 @@ from ownimplementations.conv_vae_keras import CVAE_Keras
 from ownimplementations.conv_vae_keras import compute_apply_gradients, compute_loss
 import argparse
 
-batch_size=256
+batch_size=128
 filename = '/home/erick/log_leap/pnr/05-20-generate-vae-dataset-local/05-20-generate-vae-dataset-local_2020_05_20_22_58_16_id000--s94822/vae_dataset.npy'
-num_epochs = 1000
+num_epochs = 50
 
 def train(args):
     # LOADING THE DATA
     dataset = np.load(filename, allow_pickle=True).item()
-    for k in dataset.keys():
-        dataset[k] = dataset[k][:10000, :]
-    N = 10000
+    N = len(dataset['obs'])
     n = int(N * 0.9)
     # shaping as image 84x84x3
     dataset['obs'] = np.array([transform_to_rbgarry(arr) for arr in dataset['obs']]).astype(np.float32)
@@ -44,14 +42,11 @@ def train(args):
         for batch_index, (batch_start, batch_end) in enumerate(batches):
             im_batch = train_data['next_obs'][batch_start:batch_end].copy()
             z, mu, log_sigma, _, _, loss = conv_vae.train(im_batch)
-            '''print("z = ", z[0])
-            print("mu = ", mu[0])
-            print("log_sigma = ", log_sigma[0])'''
             '''print("losses: rex: ", None," kl: ", None," total: ", loss)'''
             epoch_train_losses.append(loss)
         train_loss.append(np.array(epoch_train_losses).mean())
         #evaluate
-        if epoch % 5 == 0:
+        if epoch % 20 == 0:
             epoch_ev_loss = []
             batches = make_batches(len(test_data['next_obs']), batch_size=batch_size)
             for batch_index, (batch_start, batch_end) in enumerate(batches):
@@ -64,10 +59,10 @@ def train(args):
             print('epoch train_loss: ', np.array(epoch_train_losses).mean())
             print('epoch  evaluation_loss: ', np.array(epoch_ev_loss).mean())
             print('_______________________________________________')
-            save_model_file = args.dirpath + "cvae"
+            save_model_file = args.dirpath + "archive_002/cvae"
             conv_vae.saver.save(conv_vae.sess, save_model_file, global_step=epoch)
     #saves last model
-    save_model_file = args.dirpath + "cvae_last"
+    save_model_file = args.dirpath + "archive_002/cvae_last"
     conv_vae.saver.save(conv_vae.sess, save_model_file)
     #last log
     print('overall train_loss: ', np.array(train_loss).mean())
@@ -75,7 +70,6 @@ def train(args):
 
 def transform_to_rbgarry(flattened_array):
     img_array = flattened_array.reshape(3, 84, 84).transpose((1, 2, 0))
-    #img_array = img_array[::, :, ::-1]
     return img_array
 
 def make_batches(size, batch_size):
@@ -121,10 +115,37 @@ def prove_load(d2, d11, d1, z, args):
     d2n = conv_vae2.decode(z)
     print(d2 == d2n)
 
+def play_with_trained(args):
+    # LOADING THE DATA
+    dataset = np.load(filename, allow_pickle=True).item()
+    N = len(dataset['obs'])
+    # shaping as image 84x84x3
+    dataset['obs'] = np.array([transform_to_rbgarry(arr) for arr in dataset['obs']]).astype(np.float32)
+    dataset['next_obs'] = np.array([transform_to_rbgarry(arr) for arr in dataset['next_obs']]).astype(np.float32)
+    # Normalizing the images to the range of [0., 1.]
+    dataset['obs'] /= 255.
+    dataset['next_obs'] /= 255.
+
+    restore_path = args.dirpath + "archive_001/cvae-120"
+    conv_vae = CVAE(lr=0.001, input_channels=3, action_size=2, representation_size=16, imsize=84, restore_path=restore_path)
+    img_orig = dataset['next_obs'][10]
+    print(img_orig)
+    store_image_array_at(img_orig, args.dirpath, 'image_original')
+    z, mu, log_sigma = conv_vae.encode(img_orig)
+    print('this is z:', z)
+    img_restored = conv_vae.decode(z)
+    store_image_array_at(img_restored, args.dirpath, 'image_restored')
+    random_z = np.random.uniform(low=-1.5, high=2, size=16)
+    img_random = conv_vae.decode(random_z)
+    store_image_array_at(img_random, args.dirpath, 'image_random')
+
+
 if __name__=='__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dirpath', help='path to to directory save/load the model', type=str, default='')
     args = parser.parse_args()
     #d2, d11, d1, z = prove_store(args)
     #prove_load(d2, d11, d1, z, args)
+    #play_with_trained(args)
     train(args)
+

@@ -102,16 +102,28 @@ class CVAE:
                 for v, v_t in zip(get_vars('vae/decoder'), get_vars('dec/decoder'))
             ])
 
-            self.saver = tf.train.Saver(max_to_keep=100)
             self.init_op = tf.global_variables_initializer()
             ###
+        def create_saver():
+            self.saver = tf.train.Saver(max_to_keep=100)
+
+        if tf.test.gpu_device_name():
+            print('using gpu')
+            device_name = "/gpu:0"
+        else:
+            device_name = "/cpu:0"
+        device_name = "/cpu:0"
+
+
 
         self.graph = tf.Graph()
         with self.graph.as_default():
-            create_session()
-            create_inputs()
-            create_network()
-            create_operators()
+            with tf.device(device_name):
+                create_session()
+                create_inputs()
+                create_network()
+                create_operators()
+            create_saver()
         if self.restore_path and self.restore_path != '':
             self.saver.restore(self.sess, self.restore_path)
         else:
@@ -131,7 +143,7 @@ class CVAE:
         return loss.copy()
 
     def encode(self, im):
-        z, mu, log_sigma = self.sess.run(self.z, self.mu, self.log_sigma, {self.img_input_ph: [im]})
+        z, mu, log_sigma = self.sess.run([self.z, self.mu, self.log_sigma], {self.img_input_ph: [im]})
         return z[0].copy(), mu[0].copy(), log_sigma[0].copy()
 
     def decode(self, z):
