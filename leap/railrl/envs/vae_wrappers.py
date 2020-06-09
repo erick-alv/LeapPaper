@@ -747,15 +747,26 @@ class VAEWrappedEnv(ProxyEnv, Env):
             imgs = imgs.reshape(-1, self.vae.imlength)
             n = imgs.shape[0]
             mu, logvar = None, None
+            #mu_np, logvar_np = None, None
             for i in range(0, n, batch_size):
+            #for i in range(0, 5000, batch_size):
                 batch_mu, batch_logvar = self.vae.encode(ptu.np_to_var(imgs[i:i + batch_size]))
                 if mu is None:
                     mu = batch_mu
                     logvar = batch_logvar
+                    #mu_np = ptu.get_numpy(batch_mu)
+                    #logvar_np = ptu.get_numpy(batch_logvar)
+
                 else:
                     mu = torch.cat((mu, batch_mu), dim=0)
                     logvar = torch.cat((logvar, batch_logvar), dim=0)
+                    #mu_np = np.concatenate((mu_np, ptu.get_numpy(batch_mu)))
+                    #logvar_np = np.concatenate((logvar_np, ptu.get_numpy(batch_logvar)))
+        #assert np.all(logvar_np == ptu.get_numpy(logvar))
         std = logvar.mul(0.5).exp_()
+        #std_np = logvar_np * 0.5
+        #std_np = np.exp(std_np)
+        #assert np.all(std_np == ptu.get_numpy(std))
         if clip_std is None:
             clip_std = self.clip_encoding_std
         if clip_std:

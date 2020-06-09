@@ -37,7 +37,7 @@ def train_vae(variant):
     else:
         beta_schedule = None
 
-    # obtrain training and testing data
+    # obtain training and testing data
     dataset_path = variant['generate_vae_dataset_kwargs'].get('dataset_path', None)
     test_p = variant['generate_vae_dataset_kwargs'].get('test_p', 0.9)
     filename = local_path_from_s3_or_local_path(dataset_path)
@@ -189,7 +189,7 @@ def train_vae(variant):
                 save_interpolation=save_vis,
                 save_vae=save_vae,
             )
-        if epoch % 500 == 0 or epoch == variant['num_epochs']-1:
+        if epoch % 200 == 0 or epoch == variant['num_epochs']-1:
             visualization_post_processing(save_video, save_video, epoch)'''
 
         t.test_epoch(epoch,
@@ -197,7 +197,8 @@ def train_vae(variant):
                      save_interpolation=save_vis,
                      save_vae=save_vae,
                      )
-        visualization_post_processing(save_video, save_video, epoch)
+        if epoch % 300 == 0 or epoch == variant['num_epochs'] - 1:
+            visualization_post_processing(save_vis, save_video, epoch)
 
     logger.save_extra_data(m, 'vae.pkl', mode='pickle')
     logger.remove_tabular_output(

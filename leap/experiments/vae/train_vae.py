@@ -97,7 +97,8 @@ if __name__ == "__main__":
     sweeper = hyp.DeterministicHyperparameterSweeper(
         search_space, default_parameters=variant,
     )
-    for exp_id, variant in enumerate(sweeper.iterate_hyperparameters(print_info=False)):
+    l = sweeper.iterate_hyperparameters(print_info=False)
+    for exp_id, variant in enumerate(l):
         process_variant(variant)
         run_experiment(
             exp_function=vae_experiment,

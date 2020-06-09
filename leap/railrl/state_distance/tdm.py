@@ -162,7 +162,7 @@ class TemporalDifferenceModel(TorchRLAlgorithm, metaclass=abc.ABCMeta):
         )
         self.eval_rollout_function = self.train_rollout_function
 
-    def _start_epoch(self, epoch):
+    def _start_start_epochepoch(self, epoch):
         self.max_tau = self.epoch_max_tau_schedule.get_value(epoch)
         super()._start_epoch(epoch)
 

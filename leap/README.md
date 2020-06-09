@@ -21,7 +21,7 @@ This guide contains information about (1) [Installation](#installation), (2) [Ex
 
 ### Add paths
 ```
-export PYTHONPATH=$PYTHONPATH:/path/to/multiworld/repo
+d/path/to/multiworld/repo
 export PYTHONPATH=$PYTHONPATH:/path/to/doodad/repo
 export PYTHONPATH=$PYTHONPATH:/path/to/viskit/repo
 export PYTHONPATH=$PYTHONPATH:/path/to/leap/repo

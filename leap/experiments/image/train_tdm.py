@@ -65,11 +65,11 @@ env_params = {
     'pnr': {
         'env_id': ['Image84SawyerPushAndReachArenaTrainEnvBig-v0'],
 
-        # 'rl_variant.vae_base_path': [
-        #     'your-base-path-here',
-        # ],
+        #'rl_variant.vae_base_path': [
+        #    '/home/erick/log_leap/pnr/05-26-train-vae-local/05-26-train-vae-local_2020_05_26_22_58_54_id000--s57026/',
+        #],
         'rl_variant.vae_path': [
-            'your-path-here',
+           '/home/erick/log_leap/pnr/05-26-train-vae-local/05-26-train-vae-local_2020_05_26_22_58_54_id000--s57026',
         ],
 
         'rl_variant.algo_kwargs.base_kwargs.max_path_length': [100],
@@ -129,7 +129,8 @@ if __name__ == "__main__":
     sweeper = hyp.DeterministicHyperparameterSweeper(
         search_space, default_parameters=variant,
     )
-    for exp_id, variant in enumerate(sweeper.iterate_hyperparameters(print_info=False)):
+    l = sweeper.iterate_hyperparameters(print_info=False)
+    for exp_id, variant in enumerate(l):
         process_variant(variant)
         run_experiment(
             exp_function=tdm_experiment,

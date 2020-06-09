@@ -262,10 +262,11 @@ class RLAlgorithm(metaclass=abc.ABCMeta):
             iters = list(range(start_epoch, self.num_epochs, self.epoch_freq))
         if self.num_epochs - 1 not in iters and self.num_epochs - 1 > iters[-1]:
             iters.append(self.num_epochs - 1)
-        for epoch in gt.timed_for(
-                iters,
-                save_itrs=True,
-        ):
+        total_epochs =gt.timed_for(
+            iters,
+            save_itrs=True,
+        )
+        for epoch in total_epochs:
             self._start_epoch(epoch)
             env_utils.mode(self.training_env, 'train')
             observation = self._start_new_rollout()

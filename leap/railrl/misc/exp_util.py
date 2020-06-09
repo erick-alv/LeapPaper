@@ -81,7 +81,7 @@ def get_instance_kwargs(args, num_exps, variant):
     instance_kwargs = dict(
         mode=mode,
         ssh_host=ssh_host,
-        use_gpu=(not args.no_gpu),
+        use_gpu=False,#TODO change(not args.no_gpu),
         gpu_id=gpu_id,
         num_exps_per_instance=int(num_exps),
         interactive_docker=interactive_docker,
@@ -205,7 +205,7 @@ def load_ckpt_base_path_meta_data(search_space):
         del search_space['rl_variant.ckpt_exclude_id']
 
 def load_vae_base_path_meta_data(search_space):
-    base_data_directory = '/home/soroush/data/s3'
+    base_data_directory = ''
     import os
 
     if search_space.get('rl_variant.vae_base_path', None) is not None \

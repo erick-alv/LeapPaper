@@ -721,6 +721,7 @@ class SawyerPushAndReachXYEnv(MujocoEnv, Serializable, MultitaskEnv):
         #         vmin=None,
         #         origin='bottom',  # <-- Important! By default top left is (0, 0)
         #     )
+        plt.show(fig)
 
         return self.plt_to_numpy(fig)
 
