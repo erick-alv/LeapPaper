@@ -162,7 +162,7 @@ class TemporalDifferenceModel(TorchRLAlgorithm, metaclass=abc.ABCMeta):
         )
         self.eval_rollout_function = self.train_rollout_function
 
-    def _start_start_epochepoch(self, epoch):
+    def _start_epoch(self, epoch):
         self.max_tau = self.epoch_max_tau_schedule.get_value(epoch)
         super()._start_epoch(epoch)
 
@@ -289,6 +289,8 @@ class TemporalDifferenceModel(TorchRLAlgorithm, metaclass=abc.ABCMeta):
             self._rollout_tau -= 1
             if self._rollout_tau[0] < 0:
                 self._rollout_tau = np.array([self.max_tau_for_rollout])
+        else:
+            print("self.cycle_taus_for_rollout: is False!!!!!!!!!")#TODO del after
 
     def _get_action_and_info(self, observation):
         """
