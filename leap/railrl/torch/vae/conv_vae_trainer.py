@@ -211,7 +211,7 @@ class ConvVAETrainer(Serializable):
         return torch.norm(scaling*(prediction - latent_next_obs_mu)) ** 2 / self.batch_size
 
     def train_epoch(self, epoch, batches=100):
-        self.model.train()
+        self.model.own_train()
         vae_losses = []
         losses = []
         des = []

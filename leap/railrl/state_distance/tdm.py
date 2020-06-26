@@ -199,7 +199,7 @@ class TemporalDifferenceModel(TorchRLAlgorithm, metaclass=abc.ABCMeta):
             terminals = 1 - (1 - terminals) * goal_not_reached
 
         if not self.dense_rewards:
-            rewards = rewards * terminals
+            rewards = rewards * terminals#todo not totally shaped
 
         scaling = self.discount**(self.max_tau - num_steps_left)
         rewards = rewards / scaling

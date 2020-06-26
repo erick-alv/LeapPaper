@@ -161,8 +161,10 @@ def tdm_td3_experiment(variant):
     )
     from railrl.state_distance.tdm_networks import TdmQf, TdmPolicy
     from railrl.state_distance.tdm_td3 import TdmTd3
+    from railrl.my_td3 import Actor, Critic, MY_TD3
     from railrl.state_distance.subgoal_planner import SubgoalPlanner
     from railrl.misc.asset_loader import local_path_from_s3_or_local_path
+    from railrl.my_tdm_td3 import MyTdmTd3
     import joblib
 
     preprocess_rl_variant(variant)
@@ -176,6 +178,8 @@ def tdm_td3_experiment(variant):
     vectorized = 'vectorized' in env.reward_type
     variant['algo_kwargs']['tdm_kwargs']['vectorized'] = vectorized
     variant['replay_buffer_kwargs']['vectorized'] = vectorized
+
+    args = {'latent_dim': 16, 'device': 'cuda'}#OWN
 
     if 'ckpt' in variant:
         if 'ckpt_epoch' in variant:
@@ -197,6 +201,7 @@ def tdm_td3_experiment(variant):
             env.observation_space.spaces[desired_goal_key].low.size
         )
         action_dim = env.action_space.low.size
+        max_action = env.action_space.high
 
         variant['qf_kwargs']['vectorized'] = vectorized
         norm_order = env.norm_order
@@ -205,7 +210,7 @@ def tdm_td3_experiment(variant):
         _, rew, _, _ = env.step(env.action_space.sample())
         if hasattr(rew, "__len__"):
             variant['qf_kwargs']['output_dim'] = len(rew)
-        qf1 = TdmQf(
+        '''qf1 = TdmQf(
             env=env,
             observation_dim=obs_dim,
             goal_dim=goal_dim,
@@ -226,7 +231,14 @@ def tdm_td3_experiment(variant):
             action_dim=action_dim,
             reward_scale=variant['algo_kwargs']['base_kwargs'].get('reward_scale', 1.0),
             **variant['policy_kwargs']
-        )
+        )'''
+        policy = Actor(obs_dim, action_dim, goal_dim, 1, max_action=max_action, device=args['device'],
+                       reward_scale=10.0, networks_hidden=[400, 300]).cuda()
+
+        qf1 = Critic(obs_dim, action_dim, goal_dim, 1, 4, args['device'],
+                             [400, 300]).cuda()
+        qf2 = Critic(obs_dim, action_dim, goal_dim, 1, 4, args['device'],
+                             [400, 300]).cuda()
 
     eval_policy = None
     if variant.get('eval_policy', None) == 'SubgoalPlanner':
@@ -265,7 +277,7 @@ def tdm_td3_experiment(variant):
     tdm_kwargs = algo_kwargs['tdm_kwargs']
     tdm_kwargs['observation_key'] = observation_key
     tdm_kwargs['desired_goal_key'] = desired_goal_key
-    algorithm = TdmTd3(
+    '''algorithm = TdmTd3(
         env,
         qf1=qf1,
         qf2=qf2,
@@ -273,7 +285,11 @@ def tdm_td3_experiment(variant):
         exploration_policy=exploration_policy,
         eval_policy=eval_policy,
         **variant['algo_kwargs']
-    )
+    )'''
+    algorithm = MyTdmTd3(actor=policy, critic1=qf1, critic2=qf2,max_action=max_action,args=args,
+                         env=env, exploration_policy=exploration_policy,eval_policy=eval_policy,
+                         **variant['algo_kwargs'])
+
 
     if variant.get("test_ckpt", False):
         algorithm.post_epoch_funcs.append(get_update_networks_func(variant))

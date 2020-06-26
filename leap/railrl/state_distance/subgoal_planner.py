@@ -13,6 +13,217 @@ from collections import OrderedDict
 from multiworld.envs.env_util import get_stat_in_paths, \
     create_stats_ordered_dict
 
+from copy import copy
+
+def np_to_pytorch(ob_np, goal_np, taus_np, num_subprobs, batch_size=1):
+    ob_np = np.tile(ob_np, (batch_size, 1, 1))
+    goal_np = np.tile(goal_np, (batch_size, 1, 1))
+    taus_np = np.tile(taus_np.reshape((1, num_subprobs, 1)), (batch_size, 1, 1))
+
+    ob = torch.autograd.Variable(torch.from_numpy(ob_np).float().cuda())
+    goal = torch.autograd.Variable(torch.from_numpy(goal_np).float().cuda())
+    taus = torch.autograd.Variable(torch.from_numpy(taus_np).float().cuda())
+
+    return ob, goal, taus
+
+class MySubgoalPlanner(nn.Module):
+    def __init__(self, env, mf_policy, qf,latent_dim, reward_scale):
+        super(MySubgoalPlanner, self).__init__()
+        self.env = env
+        self.mf_policy = mf_policy
+        self.qf = qf
+        self.reward_scale = reward_scale
+
+
+
+        self.latent_dim = latent_dim
+        self.lower_bounds = np.repeat(-2, self.latent_dim)
+        self.upper_bounds = np.repeat(2, self.latent_dim)
+        self.cem_optimizer_kwargs = {'batch_size': 1000, 'frac_top_chosen': 0.05,
+                                     'num_iters': 15, 'use_init_subgoals': True}
+        self.realistic_hard_constraint_threshold = 1.75
+        self.realistic_subgoal_weight = 0.001
+        true_prior_mu = torch.from_numpy(np.zeros(self.latent_dim, dtype=float))
+        true_prior_std = torch.from_numpy(np.ones(self.latent_dim, dtype=float))
+        self.true_prior_distr = torch.distributions.Normal(true_prior_mu, true_prior_std)
+
+    def get_intervals(self, maxT, max_tau):
+        self.maxT = maxT
+        self.max_tau = max_tau
+        self.num_subprobs = int(math.ceil((maxT) / (max_tau)))
+        self.num_subgoals = self.num_subprobs - 1
+
+        taus_np = np.ones(self.num_subprobs) * ((maxT) // (self.num_subprobs))
+        extra_time = int(np.sum(taus_np) - maxT)
+        i = 0
+        while extra_time != 0:
+            if extra_time > 0:
+                taus_np[i] -= 1
+                extra_time -=1
+            else:
+                taus_np[i] += 1
+                extra_time +=1
+            i = (i+1) % self.num_subprobs
+        self.taus = taus_np
+        return copy(taus_np)
+
+    def get_subgoal(self, interval_index, ob, goal, use_reprojected=True):
+        if interval_index == len(self.taus)-1:#the last goal is the real one
+            return goal
+        self._update_subgoals(interval_index, ob, goal)
+        if use_reprojected:
+            return self.subgoals_reproj[interval_index]
+        else:
+            return self.subgoals[interval_index]
+
+    def _get_vae_prior(self):
+        mu_np = np.zeros(self.latent_dim)
+        std_np = np.ones(self.latent_dim)
+
+        return mu_np, std_np
+
+    def _update_subgoals(self, interval_index, ob, goal):
+        if interval_index == 0:#first call
+            lower_bounds = np.tile(self.lower_bounds, self.num_subgoals)
+            upper_bounds = np.tile(self.upper_bounds, self.num_subgoals)
+            initial_x = np.random.uniform(lower_bounds, upper_bounds)
+        else:
+            initial_x = self.subgoals[interval_index:]
+        initial_x = initial_x.flatten()
+
+        opt_sample, opt_sample_reproj = self._optimize_cem(interval_index, init_subgoals_np=initial_x,
+                                      ob_np=ob,goal_np=goal,taus_np=self.taus[interval_index:])
+
+        if interval_index == 0:
+            self.subgoals = opt_sample.numpy()
+            self.subgoals_reproj = opt_sample_reproj.numpy()
+        else:
+            self.subgoals[interval_index:] = opt_sample.numpy()
+            self.subgoals_reproj[interval_index:]  = opt_sample_reproj.numpy()
+
+    def _optimize_cem(self, interval_index, init_subgoals_np, ob_np, goal_np, taus_np):
+        optimizer_kwargs = self.cem_optimizer_kwargs
+        num_iters = optimizer_kwargs['num_iters']
+        batch_size = optimizer_kwargs['batch_size']
+        # if the batch sizes are variable over iterations
+        if hasattr(batch_size, "__len__"):
+            batch_sizes = [batch_size[0]]*(num_iters//2) + [batch_size[1]]*(num_iters-(num_iters//2))
+        else:
+            batch_sizes = [batch_size]*num_iters
+
+        frac_top_chosen = optimizer_kwargs['frac_top_chosen']
+        # if the top chosen is variable over iterations
+        if hasattr(frac_top_chosen, "__len__"):
+            frac_top_chosens = np.array(
+                [frac_top_chosen[0]]*(num_iters//2) + [frac_top_chosen[1]]*(num_iters-(num_iters//2))
+            )
+        else:
+            frac_top_chosens = np.ones(num_iters) * frac_top_chosen
+
+        use_init_subgoals = optimizer_kwargs.get('use_init_subgoals', False)
+        obs, goals, taus = np_to_pytorch(ob_np, goal_np, taus_np, self.num_subprobs - interval_index,
+                                         batch_size=batch_sizes[0])
+
+        vae_mu, vae_std = self._get_vae_prior()
+        mu_np = np.tile(vae_mu, (self.num_subgoals - interval_index, 1)).flatten()
+        std_np = np.tile(vae_std * 1.5, (self.num_subgoals - interval_index, 1)).flatten()
+
+        if use_init_subgoals and interval_index != 0:
+            mu_np = init_subgoals_np
+
+        mu = torch.from_numpy(mu_np).float()
+        std = torch.from_numpy(std_np).float()
+
+        for i in range(num_iters):
+            # if batch sized changed from prev iteration
+            if i > 0 and batch_sizes[i] != batch_sizes[i-1]:
+                obs, goals, taus = np_to_pytorch(ob_np,goal_np,taus_np,self.num_subprobs - interval_index,
+                                                 batch_size=batch_sizes[i])
+                obs, goals, taus = obs.cuda(), goals.cuda(), taus.cuda()
+
+            samples = torch.distributions.Normal(mu, std).sample_n(batch_sizes[i])
+            losses = self._loss(interval_index, samples, obs, goals, taus)
+
+            sorted_losses, sorted_indices = torch.sort(losses)
+            num_top_chosen = int(frac_top_chosens[i] * batch_sizes[i])
+            elite_indices = sorted_indices[:num_top_chosen]
+            #elite_indices = list(elite_indices.cpu().numpy())
+            elites = samples[elite_indices]
+            mu = torch.mean(elites, dim=0)
+            std = torch.std(elites, dim=0)
+
+        opt_sample = elites[0].view(-1, self.latent_dim)
+        opt_sample_reproj= self.env.reproject_encoding(torch.autograd.Variable(opt_sample.cuda())).data.cpu()
+
+        return opt_sample, opt_sample_reproj
+
+    def _loss(self, interval_index, subgoals, obs, goals, taus, info=False):#becom exmplary the n samples of z v per subgoal flttende
+        subgoals = subgoals.float()
+        obs = obs.float()
+        taus = taus.float()
+        batch_size = int(obs.numel() / self.latent_dim)
+        subgoals = subgoals.view(batch_size, self.num_subgoals - interval_index, self.latent_dim)#reshaped to[n, latent_dim, subgolas]
+        original_subgoals = subgoals
+        #if self.reproject_encoding:#TODO
+        subgoals = self.env.reproject_encoding(torch.autograd.Variable(subgoals.cuda()))
+        path = torch.cat((obs, subgoals, goals), dim=1)
+        s = path[:, :-1].contiguous().view(-1, self.latent_dim).float()
+        g = path[:, 1:].contiguous().view(-1, self.latent_dim).float()
+        taus = taus.view(-1, 1)
+        n = s.shape[0]
+        v_vals = None
+        bs = 100000
+        for i in range(0, n, bs):
+            '''if self.infinite_horizon:
+                states_and_goals = torch.cat((s[i:i + bs], g[i:i + bs]), dim=1)
+                a = self.mf_policy(states_and_goals).detach()
+                batch_v_vals = self.qf(states_and_goals, a).detach() / self.reward_scale
+            else:'''
+            a = self.mf_policy(s[i:i + bs], g[i:i + bs], taus[i:i + bs]).detach()
+            batch_v_vals = self.qf(s[i:i + bs], a, g[i:i + bs], taus[i:i + bs]).detach() / self.reward_scale
+            if v_vals is None:
+                v_vals = batch_v_vals
+            else:
+                v_vals = torch.cat((v_vals, batch_v_vals), dim=0)
+
+        if v_vals.size()[1] > 1:
+            v_vals = -torch.norm(v_vals, p=2, dim=-1)#todo
+        v_vals = v_vals.view(batch_size, self.num_subprobs - interval_index)
+
+        min_v_val, _ = torch.min(v_vals, dim=-1)
+        v_val = min_v_val.data
+
+        realistic_subgoal_rew = self._realistic_subgoal_reward(original_subgoals)
+        #is_outside_threshold = torch.abs(original_subgoals) > self.realistic_hard_constraint_threshold
+        #is_outside_threshold = is_outside_threshold.float()
+        #realistic_hard_constraint_subgoal_rew = - 1e6 * is_outside_threshold
+
+        realistic_subgoal_rew = realistic_subgoal_rew.view(batch_size, self.num_subgoals - interval_index)
+        realistic_subgoal_rew = torch.sum(realistic_subgoal_rew, dim=-1)
+
+        '''realistic_hard_constraint_subgoal_rew = realistic_hard_constraint_subgoal_rew.view(
+            batch_size, self.num_subgoals * self.arg.latent_dim)
+        realistic_hard_constraint_subgoal_rew = torch.sum(realistic_hard_constraint_subgoal_rew, dim=-1)
+
+        if self.use_realistic_hard_constraint:
+            loss = - (self.realistic_subgoal_weight * realistic_subgoal_rew
+                      + realistic_hard_constraint_subgoal_rew
+                      + v_val).squeeze(0)
+        else:'''
+        loss = -(self.realistic_subgoal_weight * realistic_subgoal_rew + v_val.cpu()).squeeze(0)
+        return loss
+
+    def _realistic_subgoal_reward(self, subgoals):
+        if type(subgoals) is np.ndarray:
+            subgoals = torch.from_numpy(subgoals)
+        if hasattr(self, "true_prior_distr"):
+            #self.true_prior_distr.
+            log_prob = self.true_prior_distr.log_prob(subgoals.double())
+            log_prob = torch.sum(log_prob, dim=-1)
+            return log_prob.float()
+        else:
+            return torch.from_numpy(np.zeros(subgoals.shape[:-1]))
+
 class SubgoalPlanner(nn.Module):
     """
     Optimize subgols using LBFGS/LBFGS-B/BFGS/SGD/RMSPROP/CEM.
@@ -114,13 +325,16 @@ class SubgoalPlanner(nn.Module):
 
             true_prior_mu = ptu.np_to_var(true_prior_mu_np, double=use_double)
             true_prior_std = ptu.np_to_var(true_prior_std_np, double=use_double)
-            self.true_prior_distr = torch.distributions.Normal(true_prior_mu, true_prior_std)
+            self.true_prior_distr = torch.distributions.Normal(true_prior_mu, true_prior_std)#imoprtant ot have normaldistibution
         else:
             self.opt_state_size = self.raw_state_size
             self.lower_bounds = self.env.observation_space.spaces[self.achieved_goal_key].low
             self.upper_bounds = self.env.observation_space.spaces[self.achieved_goal_key].high
 
         self.reward_scale = reward_scale
+        self.my_planner = MySubgoalPlanner(self.env, self.mf_policy, self.qf, 16, self.reward_scale).cuda()
+        self.interval_index = -1
+        self.step_index = -1
 
     def reset(self):
         self.need_to_update_stats = True
@@ -128,7 +342,7 @@ class SubgoalPlanner(nn.Module):
         self.subgoals = None
         self.subgoals_reproj = None
 
-    def get_diagnostics(self, paths, prefix=''):
+    '''def get_diagnostics(self, paths, prefix=''):
         statistics = OrderedDict()
         stat_names = [
             'opt_func_loss',
@@ -158,7 +372,7 @@ class SubgoalPlanner(nn.Module):
                 stat,
                 always_show_all_stats=True,
                 ))
-        return statistics
+        return statistics'''
 
     def eval_np(self, *args):
         return self.mf_policy.eval_np(*args)
@@ -167,7 +381,34 @@ class SubgoalPlanner(nn.Module):
         return self.mf_policy.get_actions(*args)
 
     def get_action(self, ob, goal, tau_high_level):
-        self._update_taus(tau_high_level)
+        self.step_index +=1
+        if self.interval_index == -1 and self.step_index == 0:
+            self.interval_index = 0
+            self.intervals = self.my_planner.get_intervals(tau_high_level+1, 25)
+            self.current_sub = self.my_planner.get_subgoal(self.interval_index, ob, goal)
+        elif self.step_index == self.intervals[self.interval_index]:
+            self.interval_index += 1
+            if self.interval_index == len(self.intervals):
+                self.interval_index = 0
+                self.intervals = self.my_planner.get_intervals(tau_high_level+1, 25)
+            self.step_index = 0
+            self.current_sub = self.my_planner.get_subgoal(self.interval_index, ob, goal)
+
+        action, _ = self.mf_policy.get_action(
+            ob,
+            self.current_sub,
+            self.intervals[self.interval_index] - self.step_index
+        )
+        mock_v_vals = [0.0] * len(self.my_planner.subgoals)
+        if hasattr(self.env, 'update_subgoals'):
+            self.env.update_subgoals(
+                subgoals=self.my_planner.subgoals,
+                subgoals_reproj=self.my_planner.subgoals_reproj,
+                subgoal_v_vals=mock_v_vals,
+            )
+
+        return action, {}
+        '''self._update_taus(tau_high_level)
 
         if len(self.taus) == 1 and self.taus[0] == -1: # planner actually has more time to get to goal, make new plan
             update_subgoals = True
@@ -243,7 +484,7 @@ class SubgoalPlanner(nn.Module):
                 goal_to_try,
                 self.taus[0][None]
             )
-        return ac, info
+        return ac, info'''
 
     def _update_taus(self, tau_high_level):
         if self.taus is None:
@@ -563,8 +804,8 @@ class SubgoalPlanner(nn.Module):
             mu_np = np.tile(mu_subgoal, (self.num_subgoals, 1)).flatten()
             std_np = np.tile(std_subgoal, (self.num_subgoals, 1)).flatten()
         else:
-            vae_mu, vae_std = self._get_vae_prior(use_true_prior=self.use_true_prior_for_init)
-            mu_np = np.tile(vae_mu, (self.num_subgoals, 1)).flatten()
+            vae_mu, vae_std = self._get_vae_prior(use_true_prior=self.use_true_prior_for_init)#can be 0 an 1
+            mu_np = np.tile(vae_mu, (self.num_subgoals, 1)).flatten()#just repeat that for eac subgoal
             std_np = np.tile(vae_std * 1.5, (self.num_subgoals, 1)).flatten()
 
         if use_init_subgoals and self.subgoals is not None:

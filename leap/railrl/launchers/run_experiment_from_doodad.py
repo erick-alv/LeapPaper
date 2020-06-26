@@ -6,8 +6,13 @@ import time
 if __name__ == "__main__":
     mp.set_start_method('forkserver')
     args_dict = dd.get_args()
+
     #TODO delete following; changed to not presample goals
     args_dict['run_experiment_kwargs']['variant']['rl_variant']['presample_goals'] = False
+    args_dict['run_experiment_kwargs']['variant']['rl_variant']['replay_buffer_kwargs']['fraction_resampled_goals_are_env_goals'] = 0.0
+    args_dict['run_experiment_kwargs']['variant']['rl_variant']['algo_kwargs'][
+        'base_kwargs']['num_epochs'] = 300
+
     method_call = args_dict['method_call']
     run_experiment_kwargs = args_dict['run_experiment_kwargs']
     output_dir = args_dict['output_dir']

@@ -99,7 +99,7 @@ class VAETrainer():
         return kl
 
     def train_epoch(self, epoch, batches=100):
-        self.model.train()
+        self.model.own_train()
         losses = []
         kles = []
         mses = []

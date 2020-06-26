@@ -62,14 +62,14 @@ env_params = {
         ]],
     },
     'pnr': {
-        # 'rl_variant.ckpt_base_path': [
-        #     'your-base-path-here',
-        # ],
+         #'rl_variant.ckpt_base_path': [
+         #    '/home/erick/log_leap/pnr/06-17-train-tdm-local',
+         #],
         'rl_variant.ckpt': [
-            'your-path-here',
+            '/home/erick/log_leap/pnr/06-17-train-tdm-local/06-17-train-tdm-local_2020_06_17_08_38_48_id000--s63365',
         ],
 
-        'rl_variant.eval_algo': ['mf-tdm'],
+        'rl_variant.eval_algo': ['mb-tdm'],
         'rl_variant.SubgoalPlanner_kwargs.realistic_subgoal_weight': [0.001],
 
         # 'rl_variant.ckpt_epoch': [1950],

@@ -49,7 +49,7 @@ class ReprojectionNetworkTrainer():
         return self.mse(z_proj_hat, z_proj)
 
     def train_epoch(self, epoch, batches=100):
-        self.model.train()
+        self.model.own_train()
         mses = []
         losses = []
         for batch_idx in range(batches):

@@ -81,7 +81,7 @@ def get_instance_kwargs(args, num_exps, variant):
     instance_kwargs = dict(
         mode=mode,
         ssh_host=ssh_host,
-        use_gpu=False,#TODO change(not args.no_gpu),
+        use_gpu=(not args.no_gpu),
         gpu_id=gpu_id,
         num_exps_per_instance=int(num_exps),
         interactive_docker=interactive_docker,

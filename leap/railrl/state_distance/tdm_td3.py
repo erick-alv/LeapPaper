@@ -11,6 +11,8 @@ from railrl.torch.td3.td3 import TD3
 
 from torch.nn import functional as F
 
+from railrl.my_td3 import MY_TD3
+
 
 class TdmTd3(TemporalDifferenceModel, TD3):
     def __init__(
